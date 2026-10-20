@@ -1,0 +1,8 @@
+# Normalise line endings so the repo does not churn on Windows/Unix checkouts
+* text=auto eol=lf
+
+# Binary assets
+*.dll binary
+*.png binary
+*.PNG binary
+assets/NatoEraAssets/* binary

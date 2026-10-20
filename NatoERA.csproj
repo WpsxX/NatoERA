@@ -1,0 +1,109 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>NatoERA</AssemblyName>
+    <RootNamespace>NatoEra</RootNamespace>
+    <LangVersion>7.3</LangVersion>
+    <OutputType>Library</OutputType>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <DebugType>none</DebugType>
+    <Optimize>false</Optimize>
+    <NoWarn>CS0436;CS0618;CS0649;CS0169;CS0414;CS0219</NoWarn>
+    <!-- Do not let MSBuild pull in implicit references such as netstandard; they clash with the game's Mono assemblies. -->
+    <DisableImplicitFrameworkReferences>false</DisableImplicitFrameworkReferences>
+    <!-- An SDK-style project includes every .cs under the project directory recursively; that has to be off,
+         otherwise helper programs such as build\Build.cs end up compiled into the mod DLL. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Build.cs;obj/**;proj/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!--
+    Game installation path. The default matches this machine; on another machine or drive
+    override it from the command line:
+      dotnet build NatoERA.csproj -c Release /p:GhpcBin="D:\Steam\steamapps\common\Gunner HEAT PC\Bin"
+    or set the GHPC_BIN environment variable.
+  -->
+  <PropertyGroup>
+    <GhpcBin Condition="'$(GhpcBin)' == '' AND '$(GHPC_BIN)' != ''">$(GHPC_BIN)</GhpcBin>
+    <GhpcBin Condition="'$(GhpcBin)' == ''">E:\SteamLibrary\steamapps\common\Gunner HEAT PC\Bin</GhpcBin>
+    <GhpcManaged>$(GhpcBin)\GHPC_Data\Managed</GhpcManaged>
+    <GhpcMelon>$(GhpcBin)\MelonLoader</GhpcMelon>
+  </PropertyGroup>
+
+  <!-- Report a clear error when the path does not exist, instead of letting MSBuild dump a wall of missing-assembly errors. -->
+  <Target Name="CheckGamePath" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(GhpcManaged)\Assembly-CSharp.dll')"
+           Text="Game assembly not found: $(GhpcManaged)\Assembly-CSharp.dll. Point the build at the game with /p:GhpcBin=&quot;path to your Bin folder&quot;." />
+  </Target>
+
+  <!-- Source files: every .cs under src\ -->
+  <ItemGroup>
+    <Compile Include="src\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Game assemblies -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GhpcManaged)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>$(GhpcManaged)\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(GhpcManaged)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(GhpcManaged)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- MelonLoader / Harmony (net472 build, matching the game runtime) -->
+    <Reference Include="MelonLoader">
+      <HintPath>$(GhpcMelon)\net472\MelonLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(GhpcMelon)\net472\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

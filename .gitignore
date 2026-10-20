@@ -1,0 +1,12 @@
+# Build output
+build/
+obj/
+bin/
+
+# Editors
+.vs/
+*.user
+
+# Compiled assemblies (the mod is built from source, never shipped as a blob)
+*.dll
+!assets/NatoEraAssets/*
