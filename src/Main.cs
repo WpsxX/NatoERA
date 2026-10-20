@@ -4,7 +4,7 @@ using MelonLoader;
 using UnityEngine;
 
 // MelonLoader identifies the mod via these two attributes; missing either one causes the mod to be refused at load time.
-[assembly: MelonInfo(typeof(NatoEra.NatoEra), "NATO ERA", "1.2.5", "Cyance, WPSX")]
+[assembly: MelonInfo(typeof(NatoEra.NatoEra), "NATO ERA", "1.2.5", "Cyance, WpsxX")]
 [assembly: MelonGame("Radian Simulations LLC", "GHPC")]
 
 namespace NatoEra
@@ -21,7 +21,7 @@ namespace NatoEra
     {
         private const string ModName = "NATO ERA";
         private const string ModVersion = "1.2.5";
-        public const string ModAuthors = "Cyance, WPSX";
+        public const string ModAuthors = "Cyance, WpsxX";
 
         private static bool _bundlesLoaded;
         private static bool _patchesApplied;
