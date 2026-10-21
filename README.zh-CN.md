@@ -6,7 +6,7 @@
 
 ---
 
-# NATO ERA v1.2.5 — 中文
+# NATO ERA v1.2.6 — 中文
 
 > Fork 自 [Cyances/NATO-ERA](https://github.com/Cyances/NATO-ERA)。适配 GHPC `20261014` 版本。
 

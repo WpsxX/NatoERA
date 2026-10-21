@@ -167,6 +167,12 @@ namespace NatoEra
                 if (unit == null) continue;
                 if (!IsBradley(unit)) continue;
 
+                // Vehicles another mod has rebuilt are not ours to armour. The M8-LOSAT mod
+                // turns a stock M2 Bradley into its own vehicle (and even renames the unit, so
+                // the name test above can miss it) and its own setup fails as soon as ERA
+                // bricks are on the hull. M8Guard also strips anything already fitted.
+                if (M8Guard.ClearIfM8Converted(unit) > 0 || M8Guard.IsM8Converted(unit)) continue;
+
                 if (unit.GetComponent<Util.AlreadyConvertedNERA>() != null) continue;
 
                 var hull = FindHull(unit.transform);
@@ -276,11 +282,23 @@ namespace NatoEra
         /// <summary>
         /// Tests whether a unit is a Bradley (including the (alt) variant).
         /// Prefix matching rather than equality is required to cover "M2 Bradley(alt)".
+        ///
+        /// A name alone is not trusted: a custom or renamed unit can easily start with the
+        /// same text, and fitting BRAT to the wrong hull is both ugly and physically wrong.
+        /// The second signal is the Bradley model structure itself - every Bradley in the
+        /// game carries one of the bradley_* rig roots, and no other vehicle does.
         /// </summary>
         private static bool IsBradley(Unit unit)
         {
             if (unit == null) return false;
 
+            if (!HasBradleyName(unit)) return false;
+            return HasBradleySkeleton(unit);
+        }
+
+        /// <summary>True when the unit's names are a known Bradley designation.</summary>
+        private static bool HasBradleyName(Unit unit)
+        {
             string fn = unit.FriendlyName;
             if (!string.IsNullOrEmpty(fn) &&
                 fn.StartsWith(BradleyFriendlyName, StringComparison.OrdinalIgnoreCase))
@@ -294,6 +312,47 @@ namespace NatoEra
                 un.StartsWith("M2BRADLEY", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// True when the unit carries the Bradley model structure. The vanilla hull ships
+        /// "bradley_armour_rigged", "M2BRADLEY_rig" and "bradley_int_rigged"; the M2Extended
+        /// mod keeps them and only adds its own parts, so the test holds there too.
+        /// </summary>
+        private static bool HasBradleySkeleton(Unit unit)
+        {
+            if (unit.transform.Find(ArmourRigName) != null) return true;
+
+            foreach (var t in unit.GetComponentsInChildren<Transform>(true))
+            {
+                if (t == null) continue;
+                if (t.name.StartsWith("bradley_", StringComparison.OrdinalIgnoreCase)) return true;
+                if (t.name.Equals("M2BRADLEY_rig", StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            // The armour rig can also live on a separate LateFollow root ("BRADLEY HULL
+            // FOLLOW" is a scene root of its own, not a child of the Unit). Walking the
+            // roster the Unit itself publishes is the reliable way to reach it: the object
+            // that carries LateFollowTarget lists its followers, and one of them is the hull.
+            try
+            {
+                foreach (var lft in unit.GetComponentsInChildren<LateFollowTarget>(true))
+                {
+                    if (lft == null) continue;
+                    foreach (var lf in Compat.GetLateFollowers(lft))
+                    {
+                        if (lf == null) continue;
+                        if (!string.Equals(lf.name, HullFollowName, StringComparison.OrdinalIgnoreCase)) continue;
+                        return true;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // A malformed roster must never abort the scan; fall through to "not a Bradley".
             }
 
             return false;

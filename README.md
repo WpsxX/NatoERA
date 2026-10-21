@@ -6,7 +6,7 @@
 
 ---
 
-# NATO ERA v1.2.5
+# NATO ERA v1.2.6
 
 > Forked from [Cyances/NATO-ERA](https://github.com/Cyances/NATO-ERA). Adapted for GHPC `20261014`.
 

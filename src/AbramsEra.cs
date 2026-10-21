@@ -156,11 +156,19 @@ namespace NatoEra
                 var unit = GetParentUnit(armorGo.transform);
                 if (unit == null) continue;
 
-                string tag = unit.UniqueName ?? string.Empty;
-                bool isM1Ip = tag.IndexOf("M1IP", StringComparison.OrdinalIgnoreCase) >= 0;
-                bool isM1   = !isM1Ip && tag.IndexOf("M1", StringComparison.OrdinalIgnoreCase) >= 0;
+                // Identify the vehicle. A plain "contains M1" test is too loose: any unit whose
+                // unique name merely embeds those two characters passes it, and the whole point
+                // of this pass is to leave every non-Abrams vehicle alone. IsAbramsUnit() also
+                // requires the Abrams armour skeleton, so M60 / M113 / custom units stay
+                // untouched even when their names look tempting.
+                if (!IsAbramsUnit(unit, out bool isM1Ip)) continue;
+                bool isM1 = !isM1Ip;
 
-                if (!isM1Ip && !isM1) continue;
+                // Vehicles another mod has rebuilt are not ours to armour. The M8-LOSAT mod
+                // turns a stock M2 Bradley into its own vehicle and expects to be the only
+                // thing touching that hull; ERA bricks on it make its fitted-armor and
+                // partition setups fail. M8Guard also clears anything already fitted.
+                if (M8Guard.ClearIfM8Converted(unit) > 0 || M8Guard.IsM8Converted(unit)) continue;
 
                 // Per-vehicle master switch (original: if (showERAm1ip.Value) { ... } / if (showERAm1.Value) { ... })
                 if (isM1Ip && !Config.ShowEraM1Ip) continue;
@@ -282,9 +290,14 @@ namespace NatoEra
             {
                 if (unit == null) continue;
 
-                bool isM1Ip = IsM1IpUnit(unit);
+                // Belt and braces: _unitCache only ever holds vehicles that already passed
+                // IsAbramsUnit(), but re-check so this fallback can never outlive that rule.
+                if (!IsAbramsUnit(unit, out bool isM1Ip)) continue;
                 if (isM1Ip && !Config.ShowEraM1Ip) continue;
                 if (!isM1Ip && !Config.ShowEraM1) continue;
+
+                // Same rule as the main scan: never armour a vehicle another mod rebuilt.
+                if (M8Guard.ClearIfM8Converted(unit) > 0 || M8Guard.IsM8Converted(unit)) continue;
 
                 // The turret array is its own preference (original: showERAm1ip_Turret / showERAm1_Turret)
                 if (isM1Ip && !Config.ShowEraM1Ip_Turret) continue;
@@ -609,6 +622,92 @@ namespace NatoEra
         /// The value comes from ComputeArrayMass(), i.e. the original author's weight table.
         /// </summary>
         private static readonly Dictionary<int, float> _pendingMass = new Dictionary<int, float>();
+
+        /// <summary>
+        /// Decides whether a unit is an Abrams and, when it is, which array family it uses.
+        ///
+        /// The old test was "UniqueName contains M1", which is far too broad: it matched any
+        /// unit whose name happens to embed those two characters, and because the fitting pass
+        /// keys off the name alone it could attach ARAT to vehicles that are not Abrams at all.
+        ///
+        /// Two independent signals have to agree here:
+        ///
+        /// 1. The name has to be a known Abrams designation, matched as a whole token so that
+        ///    "M60A1", "M113" or "T54A" never pass. The M1A1 mods keep the vanilla names, so
+        ///    nothing extra is needed for them.
+        ///
+        /// 2. The model has to carry the Abrams armour skeleton ("IPM1_rig"). Every Abrams hull
+        ///    in the game, vanilla or rebuilt by AMP / CROWSFIX / M1A1, has it; no other vehicle
+        ///    does. This is what stops a renamed non-Abrams unit from being fitted.
+        /// </summary>
+        private static bool IsAbramsUnit(Unit unit, out bool isM1Ip)
+        {
+            isM1Ip = false;
+            if (unit == null) return false;
+
+            if (!HasAbramsName(unit)) return false;
+            if (!HasAbramsSkeleton(unit)) return false;
+
+            isM1Ip = IsM1IpUnit(unit);
+            return true;
+        }
+
+        /// <summary>True when the unit's names are a known Abrams designation.</summary>
+        private static bool HasAbramsName(Unit unit)
+        {
+            if (NameHasToken(unit.UniqueName, "M1IP")) return true;
+            if (NameHasToken(unit.UniqueName, "M1")) return true;
+            if (NameHasToken(unit.FriendlyName, "M1IP")) return true;
+            if (NameHasToken(unit.FriendlyName, "M1")) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// True when <paramref name="name"/> contains <paramref name="token"/> as a standalone
+        /// token, i.e. it is not glued to another letter or digit on either side.
+        ///
+        /// "M1" matches "M1", "M1(alt)", "M1 Abrams" and "M1 4", but not "M60A1", "M113",
+        /// "M1A2" or "IPM1_rig". That is the whole point: only the M1 and M1IP are fitted.
+        /// </summary>
+        private static bool NameHasToken(string name, string token)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+
+            int i = name.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+            while (i >= 0)
+            {
+                int after = i + token.Length;
+                bool leftOk = i == 0 || !char.IsLetterOrDigit(name[i - 1]);
+                bool rightOk = after >= name.Length || !char.IsLetterOrDigit(name[after]);
+                if (leftOk && rightOk) return true;
+
+                if (after >= name.Length) break;
+                i = name.IndexOf(token, after, StringComparison.OrdinalIgnoreCase);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// True when the unit carries the Abrams armour skeleton ("IPM1_rig"). Every Abrams in
+        /// the game uses it, vanilla or rebuilt by the M1A1 / AMP / CROWSFIX mods, and no other
+        /// vehicle does.
+        /// </summary>
+        private static bool HasAbramsSkeleton(Unit unit)
+        {
+            if (unit == null) return false;
+
+            if (unit.transform.Find("IPM1_rig") != null) return true;
+
+            foreach (var t in unit.GetComponentsInChildren<Transform>(true))
+            {
+                if (t == null) continue;
+                if (t.name.StartsWith("IPM1_rig", StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            // The armour skeleton can live on a separate LateFollow root that is not a child of
+            // the Unit, so a vehicle with an Abrams turret follow root still counts.
+            return FindTurretFollowOfVehicle(unit) != null;
+        }
 
         /// <summary>
         /// True when the vehicle should be treated as an M1IP.

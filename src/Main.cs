@@ -4,7 +4,7 @@ using MelonLoader;
 using UnityEngine;
 
 // MelonLoader identifies the mod via these two attributes; missing either one causes the mod to be refused at load time.
-[assembly: MelonInfo(typeof(NatoEra.NatoEra), "NATO ERA", "1.2.5", "Cyance, WpsxX")]
+[assembly: MelonInfo(typeof(NatoEra.NatoEra), "NATO ERA", "1.2.6", "Cyance, WpsxX")]
 [assembly: MelonGame("Radian Simulations LLC", "GHPC")]
 
 namespace NatoEra
@@ -20,7 +20,7 @@ namespace NatoEra
     public class NatoEra : MelonMod
     {
         private const string ModName = "NATO ERA";
-        private const string ModVersion = "1.2.5";
+        private const string ModVersion = "1.2.6";
         public const string ModAuthors = "Cyance, WpsxX";
 
         private static bool _bundlesLoaded;
@@ -130,6 +130,13 @@ namespace NatoEra
             int unitsBefore = CountUnits();
             MelonLogger.Msg("[NatoERA] Fitting starts with " + unitsBefore + " unit(s) in the scene.");
 
+            // Vehicles another mod has rebuilt are off limits. The M8-LOSAT mod converts one
+            // stock M2 Bradley every 1.5 s and does that work synchronously, so a vehicle it
+            // has already taken over is detectable here - and if this mod got there first the
+            // conversion would fail instead. Strip our ERA off those and remember them, so the
+            // two passes below skip them outright.
+            SweepForeignVehicles();
+
             // yield cannot sit inside try/catch, so each pass is wrapped the only way the
             // language allows: hand the enumerator to a guarded drain that returns it.
             var arat = AbramsEra.ConvertCoroutine(state);
@@ -146,6 +153,37 @@ namespace NatoEra
 
             int unitsAfter = CountUnits();
             MelonLogger.Msg("[NatoERA] ERA fitting pass finished (" + unitsAfter + " unit(s) in the scene).");
+        }
+
+        /// <summary>
+        /// Runs <see cref="M8Guard"/> over every unit in the scene once.
+        ///
+        /// This is the only place that needs to know about a specific other mod; the two
+        /// fitting passes ask the guard themselves too, so a vehicle converted between this
+        /// sweep and the pass is still caught.
+        /// </summary>
+        private static void SweepForeignVehicles()
+        {
+            try
+            {
+                M8Guard.Prune();
+
+                int skipped = 0;
+                foreach (var unit in UnityEngine.Object.FindObjectsOfType<GHPC.Unit>())
+                {
+                    if (unit == null) continue;
+                    if (M8Guard.ClearIfM8Converted(unit) > 0) skipped++;
+                }
+
+                if (skipped > 0)
+                {
+                    MelonLogger.Warning("[NatoERA] " + skipped + " vehicle(s) belong to another mod and were left unarmoured.");
+                }
+            }
+            catch (Exception e)
+            {
+                MelonLogger.Error("[NatoERA] Foreign-vehicle sweep failed: " + e);
+            }
         }
 
         /// <summary>
