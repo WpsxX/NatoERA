@@ -358,6 +358,18 @@ namespace NatoEra
             {
                 visual.AddComponent<HeatSource>();
             }
+
+            // ---- Detonation visuals ----
+            // Records which mesh belongs to this brick so the Detonate postfix can swap or hide it
+            // and play a burst. Without this the brick would only go dark, with no report at all.
+            var visuals = Compat.AddOrGetComponent<EraVisuals>(go);
+            if (visuals != null)
+            {
+                visuals.Visual = visual.GetComponent<MeshRenderer>();
+                visuals.HideOnDetonate = true;
+                visuals.DestroyedMaterial = null;
+                visuals.DestroyedTarget = "";
+            }
         }
 
         /// <summary>Name of the generated child that carries a brick's rendered mesh.</summary>

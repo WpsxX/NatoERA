@@ -132,14 +132,21 @@ namespace NatoEra
         // 5b. Mod extensions (not present in the original mod; failures below the original 34 entries)
         // =====================================================================
 
-        /// <summary>Rounds with a caliber (mm) below this value only detonate ERA when their penetration exceeds <see cref="PenThreshold"/>.</summary>
-        public static float CaliberThreshold = 20f;
-
-        /// <summary>Penetration (mm) needed for a below-threshold-caliber round to detonate ERA.</summary>
-        public static float PenThreshold = 10f;
-
         /// <summary>Shift BRAT outwards so it sits on top of the M2Extended addon armor. false = fit exactly like the original mod.</summary>
         public static bool EnableM2ExtendedOverlay = true;
+
+        /// <summary>
+        /// A round at or above this calibre sets a brick off even when it failed to penetrate it,
+        /// so a heavy shell that bounces still cooks off the ERA. Below it the round has to carry
+        /// enough penetration instead (see <see cref="PenThreshold"/>).
+        /// </summary>
+        public static float CaliberThreshold = InsensitiveEraPatch.DefaultCaliberThreshold;
+
+        /// <summary>
+        /// A round below <see cref="CaliberThreshold"/> still sets a brick off when its penetration
+        /// rating exceeds this value.
+        /// </summary>
+        public static float PenThreshold = InsensitiveEraPatch.DefaultPenThreshold;
 
         // =====================================================================
         // 6. Mass table (hard-coded inside each Convert method in the original; kept verbatim here)
@@ -227,10 +234,6 @@ namespace NatoEra
         // =====================================================================
         // 7. Fixed internal constants (not preferences)
         // =====================================================================
-        //
-        // Detonation sensitivity defaults live in the NatoEra ... preferences above; the transpiler reads the
-        // runtime <see cref="Config.CaliberThreshold"/> / <see cref="Config.PenThreshold"/> values through
-        // <see cref="InsensitiveEraPatch"/>.
 
         /// <summary>How far BRAT is pushed outwards when it has to sit outside the M2Extended addon armor (metres). Not a preference.</summary>
         public const float M2ExtendedOverlayGap = 0f;
@@ -324,12 +327,14 @@ namespace NatoEra
             // the original section and an existing cfg keeps working untouched (defaults = original behaviour).
             // ---------------------------------------------------------------
 
-            var eCaliber = _cat.CreateEntry<float>("NatoEra Caliber Threshold (mm)", CaliberThreshold);
-            eCaliber.Description = "Rounds with a smaller caliber only detonate ERA when their penetration exceeds the penetration threshold";
-            var ePenetration = _cat.CreateEntry<float>("NatoEra Penetration Threshold (mm)", PenThreshold);
-            ePenetration.Description = "Penetration needed for a below-threshold-caliber round to detonate ERA";
             var eM2Extended = _cat.CreateEntry<bool>("NatoEra M2Extended Overlay", EnableM2ExtendedOverlay);
             eM2Extended.Description = "Set to true to shift BRAT outwards when the M2Extended addon armor is fitted, so it sits outside it";
+
+            var eCaliber = _cat.CreateEntry<float>("NatoEra Caliber Threshold (mm)", CaliberThreshold);
+            eCaliber.Description = "Rounds at or above this calibre set a brick off even when they fail to penetrate it";
+
+            var ePenetration = _cat.CreateEntry<float>("NatoEra Penetration Threshold (mm)", PenThreshold);
+            ePenetration.Description = "Rounds below the calibre threshold still set a brick off when their penetration exceeds this";
 
             // ---------------------------------------------------------------
             // 2. Push the values back into the static fields (the user may have edited the cfg)
@@ -379,9 +384,10 @@ namespace NatoEra
             BratB = eBratB.Value;
 
             // ---- Mod extensions (not present in the original mod) ----
+            EnableM2ExtendedOverlay = eM2Extended.Value;
+
             CaliberThreshold = Mathf.Max(0f, eCaliber.Value);
             PenThreshold = Mathf.Max(0f, ePenetration.Value);
-            EnableM2ExtendedOverlay = eM2Extended.Value;
 
             // Out-of-range RGB produces an invalid color, so clamp it
             AratR = Mathf.Clamp(AratR, 0f, 255f);
@@ -408,17 +414,21 @@ namespace NatoEra
             MelonLogger.Msg("[NatoERA/Config] Show toggles M1=" + ShowEraM1 + " M1IP=" + ShowEraM1Ip
                 + " M2=" + ShowEraM2
                 + " | Feather ARAT=" + FeatherArat + " BRAT=" + FeatherBrat);
+            MelonLogger.Msg("[NatoERA/Config] Detonation thresholds: calibre >= " + CaliberThreshold.ToString("0.#")
+                + " mm sets a brick off without penetrating; below that, penetration > " + PenThreshold.ToString("0.#") + " mm.");
         }
 
         /// <summary>
-        /// Pushes the runtime ERA sensitivity thresholds into <see cref="InsensitiveEraPatch"/>. The transpiler
-        /// is built the first time the patch is applied, so this must run after <see cref="Init"/> and before
-        /// any patch target is touched.
+        /// Single hook where the mod hands its settings to the patching layer.
+        ///
+        /// The transpiler bakes the thresholds in as literals when it runs, so the values only
+        /// have to be pushed once, before the first patch is applied. They are read here rather
+        /// than at patch time because Harmony may build the replacement IL lazily.
         /// </summary>
         public static void ApplyToPatches()
         {
-            InsensitiveEraPatch.PenThreshold = PenThreshold;
             InsensitiveEraPatch.CaliberThreshold = CaliberThreshold;
+            InsensitiveEraPatch.PenThreshold = PenThreshold;
         }
     }
 }

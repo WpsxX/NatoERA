@@ -110,8 +110,8 @@ This fork adds the following 3 options on top of the original 34. They exist to 
 
 | Option  | Default config | Added Weight (KG) | Note |
 | ------------- | ------------- | ------------- | ------------- |
-| NatoEra Caliber Threshold (mm) | 20 |  | Rounds with a smaller caliber only detonate ERA when their penetration exceeds the penetration threshold below. Hardcoded to 20mm in the original, exposed here so it can be tuned. |
-| NatoEra Penetration Threshold (mm) | 10 |  | Penetration needed for a below-threshold-caliber round to detonate ERA. Hardcoded to 10mm in the original. |
+| NatoEra Caliber Threshold (mm) | 25 |  | A round at or above this calibre sets a brick off even when it does not penetrate it, so a heavy shell that is stopped still cooks the ERA off. Below it the round has to carry penetration instead. |
+| NatoEra Penetration Threshold (mm) | 40 |  | A round below the calibre threshold is stopped by the brick and still sets it off when its penetration rating exceeds this value. Below both thresholds the brick absorbs the hit without detonating. |
 | NatoEra M2Extended Overlay | true |  | Set to true to shift BRAT outwards when the M2Extended addon armor is fitted, so it sits outside it. Has no effect when M2Extended is not installed. |
 
 The ERA arrangement for the units can be changed when (re)loading missions without restarting the game. Simply alt tab to edit the .cfg file, save the file then restart the mission or start a new one. However, to see updated ARAT performance or color, the game needs to be restarted.

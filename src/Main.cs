@@ -52,6 +52,12 @@ namespace NatoEra
             MelonLogger.Msg("[NatoERA] Init complete. ERA will be fitted to M1/M1IP/M2 Bradley automatically once GameReady fires.");
         }
 
+        public override void OnSceneWasUnloaded(int buildIndex, string sceneName)
+        {
+            // Anything cached from the scene that just went away must not be reused
+            EraDetonateVisuals.Reset();
+        }
+
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             if (IsMenuScene(sceneName))
@@ -61,6 +67,9 @@ namespace NatoEra
             }
 
             MelonLogger.Msg("[NatoERA] Entered combat scene \"" + sceneName + "\", preparing to fit ERA.");
+
+            // The cached impact-burst AmmoType references objects from the previous scene
+            EraDetonateVisuals.Reset();
 
             // The AssetBundle only needs to be loaded once
             if (!_bundlesLoaded)
@@ -84,8 +93,7 @@ namespace NatoEra
                 try
                 {
                     Config.ApplyToPatches();
-                    MelonLogger.Msg("[NatoERA] ERA sensitivity patch parameters: caliber threshold=" + InsensitiveEraPatch.CaliberThreshold
-                        + "mm penetration threshold=" + InsensitiveEraPatch.PenThreshold + "mm");
+                    MelonLogger.Msg("[NatoERA] ERA detonation rule active: a brick only detonates when the round penetrates it.");
                 }
                 catch (Exception e)
                 {
