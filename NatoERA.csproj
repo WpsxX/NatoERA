@@ -15,9 +15,13 @@
     <!-- Do not let MSBuild pull in implicit references such as netstandard; they clash with the game's Mono assemblies. -->
     <DisableImplicitFrameworkReferences>false</DisableImplicitFrameworkReferences>
     <!-- An SDK-style project includes every .cs under the project directory recursively; that has to be off,
-         otherwise helper programs such as build\Build.cs end up compiled into the mod DLL. -->
+         otherwise helper programs such as build\Build.cs end up compiled into the mod DLL.
+         lib/** is excluded for a different reason: the SDK also globs every file as a default item, and an
+         assembly sitting inside the project tree wins over <HintPath>. Without this line, building with
+         /p:MelonApi=net472 still linked against the vendored 0.6.1 lib\melonloader-0.6.1\net35\MelonLoader.dll
+         (verified: the output DLL's assembly ref stayed 0.6.1.0 while every HintPath said net472). -->
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <DefaultItemExcludes>$(DefaultItemExcludes);Build.cs;obj/**;proj/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Build.cs;obj/**;proj/**;lib/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!--
@@ -30,13 +34,37 @@
     <GhpcBin Condition="'$(GhpcBin)' == '' AND '$(GHPC_BIN)' != ''">$(GHPC_BIN)</GhpcBin>
     <GhpcBin Condition="'$(GhpcBin)' == ''">E:\SteamLibrary\steamapps\common\Gunner HEAT PC\Bin</GhpcBin>
     <GhpcManaged>$(GhpcBin)\GHPC_Data\Managed</GhpcManaged>
-    <GhpcMelon>$(GhpcBin)\MelonLoader</GhpcMelon>
+
+    <!--
+      MelonLoader API to compile against.
+
+      The mod has to be built against the MelonLoader the players actually run:
+        net35  - MelonLoader 0.6.1 and older Mono installs (0.6.1 ships net35 + net6 only)
+        net472 - MelonLoader 0.7+ Mono installs (0.7 added the net472 flavor)
+
+      Default is net35, i.e. 0.6.1. Override the root when your game does not carry the
+      matching folder, for example against a 0.6.1 release download:
+        dotnet build NatoERA.csproj -c Release /p:MelonLoaderRoot="C:\MelonLoader\0.6.1\MelonLoader"
+    -->
+    <MelonApi Condition="'$(MelonApi)' == ''">net35</MelonApi>
+    <!--
+      Default is the MelonLoader 0.6.1 API vendored under lib\melonloader-0.6.1, so a plain
+      build is the 0.6.1-compatible DLL everyone can drop in. To compile against a local
+      MelonLoader instead:
+        /p:MelonLoaderRoot="E:\SteamLibrary\steamapps\common\Gunner HEAT PC\Bin\MelonLoader"
+      (0.7+ installs: add /p:MelonApi=net472)
+    -->
+    <MelonLoaderRoot Condition="'$(MelonLoaderRoot)' == '' AND '$(MELONLOADER_ROOT)' != ''">$(MELONLOADER_ROOT)</MelonLoaderRoot>
+    <MelonLoaderRoot Condition="'$(MelonLoaderRoot)' == ''">$(MSBuildThisFileDirectory)lib\melonloader-0.6.1</MelonLoaderRoot>
+    <GhpcMelon>$(MelonLoaderRoot)\$(MelonApi)</GhpcMelon>
   </PropertyGroup>
 
   <!-- Report a clear error when the path does not exist, instead of letting MSBuild dump a wall of missing-assembly errors. -->
   <Target Name="CheckGamePath" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="!Exists('$(GhpcManaged)\Assembly-CSharp.dll')"
            Text="Game assembly not found: $(GhpcManaged)\Assembly-CSharp.dll. Point the build at the game with /p:GhpcBin=&quot;path to your Bin folder&quot;." />
+    <Error Condition="!Exists('$(GhpcMelon)\MelonLoader.dll')"
+           Text="MelonLoader API not found: $(GhpcMelon)\MelonLoader.dll. Use /p:MelonLoaderRoot=&quot;folder that contains net35 and net472&quot; and /p:MelonApi=net35 (0.6.1) or net472 (0.7+)." />
   </Target>
 
   <!-- Source files: every .cs under src\ -->
@@ -95,13 +123,13 @@
       <Private>false</Private>
     </Reference>
 
-    <!-- MelonLoader / Harmony (net472 build, matching the game runtime) -->
+    <!-- MelonLoader / Harmony, from the flavor selected by $(MelonApi) -->
     <Reference Include="MelonLoader">
-      <HintPath>$(GhpcMelon)\net472\MelonLoader.dll</HintPath>
+      <HintPath>$(GhpcMelon)\MelonLoader.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>$(GhpcMelon)\net472\0Harmony.dll</HintPath>
+      <HintPath>$(GhpcMelon)\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

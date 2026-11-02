@@ -181,6 +181,12 @@ namespace NatoEra
         // ---- How the original adds mass at M1Abrams.cs:181-217 / 300-340 ----
         // Note: the original adds the base hull mass unconditionally, while every other item is gated behind its own toggle.
         // The logic is carried over as is to avoid any mass difference against the legacy version.
+        //
+        // One deliberate deviation: the turret sub-arrays (extended / roof / cheek) are also gated behind the
+        // master turret switch. AbramsEra can only build the turret array when ShowEraMx_Turret is true
+        // (AbramsEra.cs:205 for the shared armour node, :303 for the IPM1_rig follow node), and the sub-switches
+        // merely filter which bricks that array keeps (AbramsEra.cs:583-585). Paying 884 kg for roof + cheek
+        // bricks that provably cannot be attached is a bug, not legacy parity.
 
         /// <summary>Total mass added by the original M1IP branch.</summary>
         public static float TotalMassM1Ip
@@ -191,10 +197,13 @@ namespace NatoEra
                 if (ShowEraM1Ip_HullExtended)   kg += MassM1IpHullExtended;
                 if (ShowEraM1Ip_HullLowerFront) kg += MassM1IpHullLowerFront;
                 if (ShowEraM1Ip_HullUpperFront) kg += MassM1IpHullUpperFront;
-                if (ShowEraM1Ip_Turret)         kg += MassM1IpTurret;
-                if (ShowEraM1Ip_TurretExtended) kg += MassM1IpTurretExtended;
-                if (ShowEraM1Ip_TurretRoof)     kg += MassM1IpTurretRoof;
-                if (ShowEraM1Ip_TurretCheek)    kg += MassM1IpTurretCheek;
+                if (ShowEraM1Ip_Turret)
+                {
+                    kg += MassM1IpTurret;
+                    if (ShowEraM1Ip_TurretExtended) kg += MassM1IpTurretExtended;
+                    if (ShowEraM1Ip_TurretRoof)     kg += MassM1IpTurretRoof;
+                    if (ShowEraM1Ip_TurretCheek)    kg += MassM1IpTurretCheek;
+                }
                 return kg;
             }
         }
@@ -208,10 +217,13 @@ namespace NatoEra
                 if (ShowEraM1_HullExtended)   kg += MassM1HullExtended;
                 if (ShowEraM1_HullLowerFront) kg += MassM1HullLowerFront;
                 if (ShowEraM1_HullUpperFront) kg += MassM1HullUpperFront;
-                if (ShowEraM1_Turret)         kg += MassM1Turret;
-                if (ShowEraM1_TurretExtended) kg += MassM1TurretExtended;
-                if (ShowEraM1_TurretRoof)     kg += MassM1TurretRoof;
-                if (ShowEraM1_TurretCheek)    kg += MassM1TurretCheek;
+                if (ShowEraM1_Turret)
+                {
+                    kg += MassM1Turret;
+                    if (ShowEraM1_TurretExtended) kg += MassM1TurretExtended;
+                    if (ShowEraM1_TurretRoof)     kg += MassM1TurretRoof;
+                    if (ShowEraM1_TurretCheek)    kg += MassM1TurretCheek;
+                }
                 return kg;
             }
         }

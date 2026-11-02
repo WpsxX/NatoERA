@@ -10,3 +10,5 @@ bin/
 # Compiled assemblies (the mod is built from source, never shipped as a blob)
 *.dll
 !assets/NatoEraAssets/*
+# ...but the vendored MelonLoader API reference is needed to build from a fresh clone
+!lib/**/*.dll

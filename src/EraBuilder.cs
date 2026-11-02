@@ -558,6 +558,47 @@ namespace NatoEra
         private static bool _fallbackTexSearched;
 
         /// <summary>
+        /// Forgets the texture lookups so the next fitting pass searches again.
+        ///
+        /// Resources.FindObjectsOfTypeAll only sees assets that are already in memory, and when
+        /// the first pass runs the terrain material that uses GHPC_ConcretePanels_Diffuse may not
+        /// have been loaded yet - the miss was then cached for the rest of the session and every
+        /// brick stayed flat-colored. Called once per fitting pass from Main.OnGameReady.
+        /// </summary>
+        public static void ResetTextureCache()
+        {
+            _fallbackTex = null;
+            _fallbackTexSearched = false;
+            _fallbackNormalMap = null;
+            _fallbackNormalMapSearched = false;
+        }
+
+        /// <summary>
+        /// Loose match for the brick base texture: "GHPC_ConcretePanels_Diffuse", or an "Albedo"
+        /// spelling in a future build. The normal and displacement maps must never be picked up
+        /// as the color map, so any name carrying those words is rejected first.
+        /// </summary>
+        private static bool IsBrickBaseTextureName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            if (!name.Contains("ConcretePanels")) return false;
+            if (name.Contains("Normal") || name.Contains("NRM") || name.Contains("Displacement")) return false;
+            return name.Contains("Diffuse") || name.Contains("Albedo");
+        }
+
+        /// <summary>
+        /// Loose match for the brick normal map: "GHPC_ConcretePanels_Normal", or an "NRM"
+        /// spelling in a future build.
+        /// </summary>
+        private static bool IsBrickNormalTextureName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            if (!name.Contains("ConcretePanels")) return false;
+            if (name.Contains("Diffuse") || name.Contains("Albedo") || name.Contains("Displacement")) return false;
+            return name.Contains("Normal") || name.Contains("NRM");
+        }
+
+        /// <summary>
         /// Base texture for the bricks.
         /// The old version looked up GHPC_ConcretePanels_Diffuse in Resources; that asset is no longer in Resources in the new build.
         /// Returns null when not found -- the material then stays flat-colored, which is perfectly acceptable visually.
@@ -573,17 +614,16 @@ namespace NatoEra
                 {
                     foreach (var t in Resources.FindObjectsOfTypeAll<Texture>())
                     {
-                        if (t != null && t.name == "GHPC_ConcretePanels_Diffuse")
+                        if (t != null && (t.name == "GHPC_ConcretePanels_Diffuse"
+                                          || IsBrickBaseTextureName(t.name)))
                         {
                             _fallbackTex = t;
-                            MelonLogger.Msg("[NatoERA/EraBuilder] Found brick base texture GHPC_ConcretePanels_Diffuse");
                             return _fallbackTex;
                         }
                     }
                 }
                 catch (Exception) { }
 
-                MelonLogger.Msg("[NatoERA/EraBuilder] GHPC_ConcretePanels_Diffuse not found, bricks use a flat-color material.");
                 return null;
             }
         }
@@ -606,17 +646,16 @@ namespace NatoEra
                 {
                     foreach (var t in Resources.FindObjectsOfTypeAll<Texture>())
                     {
-                        if (t != null && t.name == "GHPC_ConcretePanels_Normal")
+                        if (t != null && (t.name == "GHPC_ConcretePanels_Normal"
+                                          || IsBrickNormalTextureName(t.name)))
                         {
                             _fallbackNormalMap = t;
-                            MelonLogger.Msg("[NatoERA/EraBuilder] Found brick normal map GHPC_ConcretePanels_Normal");
                             return _fallbackNormalMap;
                         }
                     }
                 }
                 catch (Exception) { }
 
-                MelonLogger.Msg("[NatoERA/EraBuilder] GHPC_ConcretePanels_Normal not found, bricks use no normal map.");
                 return null;
             }
         }
