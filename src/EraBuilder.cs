@@ -436,8 +436,11 @@ namespace NatoEra
             var mr = go.GetComponent<MeshRenderer>();
             if (mr == null) return;
 
+            // The FLIR shader keeps the bricks readable through the thermal sight, but it is a game
+            // asset a future build may rename. Missing it used to abort right here, which left the
+            // bundle's own untextured Standard material on the brick - the white block look. A plain
+            // Standard renderer is a far closer match than no treatment at all.
             var shader = Compat.FlirShader;
-            if (shader == null) return;
 
             Material mat;
             if (mr.sharedMaterial != null)
@@ -447,13 +450,29 @@ namespace NatoEra
             }
             else
             {
-                mat = new Material(shader);
+                var fallback = shader != null ? shader : Shader.Find("Standard");
+                if (fallback == null) return;
+                mat = new Material(fallback);
             }
 
-            mat.shader = shader;
+            if (shader != null) mat.shader = shader;
             mat.color = spec.Color;
 
-            var tex = FallbackTexture;
+            // [Why the albedo is no longer optional]
+            // GHPC_ConcretePanels_Diffuse is a terrain-layer asset: it is only resident while a
+            // mission's terrain actually uses that microsplat layer. The lookup therefore succeeded
+            // in some missions and came back empty in others, and an empty result left the brick as
+            // a flat Color with no concrete detail - the "colour went missing" report. A brick now
+            // always gets an albedo: the game texture when it is resident (pinned, so a later mission
+            // cannot lose it), otherwise a generated concrete map with the same tint.
+            // [1.2.9] The bundles now carry the concrete map themselves, so whatever albedo the material
+            // already holds wins: the game terrain-layer texture is only a fallback for older bundles,
+            // and the generated map is the last resort. Nothing has to be searched for at runtime any more.
+            var existingTex  = mat.mainTexture;
+            var existingBump = mat.HasProperty("_BumpMap") ? mat.GetTexture("_BumpMap") : null;
+
+            var gameTex = existingTex == null ? FallbackTexture : null;
+            var tex = existingTex != null ? existingTex : (gameTex != null ? gameTex : (Texture)ProceduralBrickTexture);
             if (tex != null)
             {
                 mat.mainTexture = tex;
@@ -462,7 +481,8 @@ namespace NatoEra
 
                 // The original ARAT.cs:113 explicitly enabled the normal map keyword.
                 // If the new build's material has _BumpMap, wire it up as well, otherwise the bricks look perfectly flat.
-                var bump = FallbackNormalMap;
+                // Only the game's own concrete normal belongs with the game's own concrete albedo.
+                var bump = existingBump != null ? existingBump : (gameTex != null ? FallbackNormalMap : null);
                 if (bump != null && mat.HasProperty("_BumpMap"))
                 {
                     mat.EnableKeyword("_NORMALMAP");
@@ -476,7 +496,7 @@ namespace NatoEra
             // base color, while the 64 default bricks already use the FLIR shader. Without this
             // log the difference is invisible until you look at the vehicle in-game (they render
             // as white blocks), so report anything that still does not match.
-            if (mr.sharedMaterial == null || mr.sharedMaterial.shader != shader)
+            if (shader != null && (mr.sharedMaterial == null || mr.sharedMaterial.shader != shader))
             {
                 MelonLogger.Warning("[NatoERA/EraBuilder] " + go.name
                     + ": material did not take the FLIR shader ("
@@ -618,6 +638,7 @@ namespace NatoEra
                                           || IsBrickBaseTextureName(t.name)))
                         {
                             _fallbackTex = t;
+                            Pin(t);
                             return _fallbackTex;
                         }
                     }
@@ -658,6 +679,96 @@ namespace NatoEra
 
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Keeps a found game texture resident across missions. The concrete map belongs to a terrain
+        /// layer, so unloading the mission that used it would destroy the asset and take the brick
+        /// detail with it; a pinned texture is simply reused by every later mission instead.
+        /// </summary>
+        private static void Pin(UnityEngine.Object asset)
+        {
+            if (asset == null) return;
+            if ((asset.hideFlags & HideFlags.DontUnloadUnusedAsset) == 0)
+                asset.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+        }
+
+        private static Texture2D _proceduralBrickTexture;
+
+        /// <summary>
+        /// Concrete albedo generated at runtime, used when the game's GHPC_ConcretePanels_Diffuse is
+        /// not resident. It matches the measured tint of that texture (sRGB mean 86,86,84 over a
+        /// 2048 map, range 66..101), so a vehicle looks the same in a mission that has the concrete
+        /// terrain layer and in one that does not. Deterministic: one seed, one map, every run.
+        /// </summary>
+        private static Texture2D ProceduralBrickTexture
+        {
+            get
+            {
+                if (_proceduralBrickTexture != null) return _proceduralBrickTexture;
+                try
+                {
+                    _proceduralBrickTexture = BuildProceduralBrickTexture();
+                }
+                catch (Exception)
+                {
+                    _proceduralBrickTexture = null;
+                }
+                return _proceduralBrickTexture;
+            }
+        }
+
+        private static Texture2D BuildProceduralBrickTexture()
+        {
+            const int size = 256;
+            const int cells = 16;
+            const float baseValue = 86f / 255f; // mean of the game's concrete map
+
+            var random = new System.Random(0x4E41544F); // "NATO"
+            var grid = new float[(cells + 1) * (cells + 1)];
+            for (int i = 0; i < grid.Length; i++) grid[i] = (float)random.NextDouble();
+
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true);
+            texture.name = "NatoERA brick albedo (generated)";
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Bilinear;
+            texture.anisoLevel = 2;
+
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                float gy = y * cells / (float)size;
+                int y0 = (int)gy;
+                float fy = gy - y0;
+                for (int x = 0; x < size; x++)
+                {
+                    float gx = x * cells / (float)size;
+                    int x0 = (int)gx;
+                    float fx = gx - x0;
+
+                    // Value noise on a 16x16 lattice: the mottling the concrete map carries. Without
+                    // it a constant grey multiplied by the brick tint reads as plastic.
+                    float n00 = grid[y0 * (cells + 1) + x0];
+                    float n10 = grid[y0 * (cells + 1) + x0 + 1];
+                    float n01 = grid[(y0 + 1) * (cells + 1) + x0];
+                    float n11 = grid[(y0 + 1) * (cells + 1) + x0 + 1];
+                    float low = Mathf.Lerp(Mathf.Lerp(n00, n10, fx), Mathf.Lerp(n01, n11, fx), fy);
+
+                    float grain = (float)random.NextDouble();
+                    float value = baseValue + (low - 0.5f) * 0.055f + (grain - 0.5f) * 0.02f;
+                    // Cast concrete panels: a faint seam every quarter of the tile.
+                    if (x % 64 == 0 || y % 64 == 0) value *= 0.82f;
+
+                    byte grey = (byte)Mathf.Clamp(Mathf.RoundToInt(value * 255f), 0, 255);
+                    // The game texture is very slightly warm (R and G above B).
+                    pixels[y * size + x] = new Color32(grey, grey, (byte)Mathf.Max(0, grey - 2), 255);
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(true, true);
+            texture.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            return texture;
         }
 
         // =====================================================================
