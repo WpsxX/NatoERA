@@ -4,7 +4,7 @@ using MelonLoader;
 using UnityEngine;
 
 // MelonLoader identifies the mod via these two attributes; missing either one causes the mod to be refused at load time.
-[assembly: MelonInfo(typeof(NatoEra.NatoEra), "NATO ERA", "1.2.9", "Cyance, WpsxX")]
+[assembly: MelonInfo(typeof(NatoEra.NatoEra), "NATO ERA", "1.2.10", "Cyance, WpsxX")]
 [assembly: MelonGame("Radian Simulations LLC", "GHPC")]
 
 namespace NatoEra
@@ -20,7 +20,7 @@ namespace NatoEra
     public class NatoEra : MelonMod
     {
         private const string ModName = "NATO ERA";
-        private const string ModVersion = "1.2.9";
+        private const string ModVersion = "1.2.10";
         public const string ModAuthors = "Cyance, WpsxX";
 
         private static bool _bundlesLoaded;
@@ -89,6 +89,13 @@ namespace NatoEra
             // 2. Resolve the game's internal fields via reflection (done up front so any problem shows up in the log early)
             Compat.Resolve();
 
+            // 3. Guard the M1A1 Abrams mod family (M1A1Abrams / AMP / CROWSFIX).
+            //    Those mods still walk skeleton nodes that 20261014 removed and dereference the
+            //    null without checking, which kills their whole conversion loop. The shim skips
+            //    only the vehicles that are provably going to fail, so they stay vanilla instead
+            //    of ending up half converted. Does nothing when no such mod is installed.
+            BranchCompat.Init();
+
             MelonLogger.Msg("[NatoERA] Init complete. ERA will be fitted to M1/M1IP/M2 Bradley automatically once GameReady fires.");
         }
 
@@ -114,6 +121,10 @@ namespace NatoEra
 
             // The cached impact-burst AmmoType references objects from the previous scene
             EraDetonateVisuals.Reset();
+
+            // Retry the branch guard in case the M1A1 Abrams mod family was initialised after this
+            // mod (loader order is not guaranteed). Already-guarded assemblies are skipped inside.
+            BranchCompat.Refresh();
 
             // The AssetBundle only needs to be loaded once - but only a *successful* load counts.
             // The flag used to be set before the call, so a single failure (a bundle locked by

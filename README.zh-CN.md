@@ -28,6 +28,16 @@
 - ARAT-1 单块砖重 29.48 KG，总重量四舍五入到个位
 - 找不到 BRAT 的官方重量，因此假定其与 ARAT 相同
 
+### 与 M1A1 Abrams 系 mod 共存
+
+20261014 删掉了 M1 的一部分骨架节点（`M1A0_mesh`、`M1A0_turret_armour`、`M1 TURRET FOLLOW`）。仍按旧骨架工作的三个 M1A1 分支（M1A1Abrams、AMP、CROWSFIX）会在换炮管骨骼时取到空引用，其中两个分支没有逐车隔离，一台车出错就中断整场转换。
+
+本 mod 自带一层兜底：先判断这辆车会不会失败，会失败就整台跳过、保持游戏原始状态（不改名、不换炮、不换弹药）；剩下没预料到的异常也会被拦下并记录，不再影响其它车辆。
+
+- 不改动对方 mod 的任何文件与配置，也不会替它们做转换
+- 没有安装这三个分支时这层兜底完全不介入
+- 日志里搜 `[NatoERA/Compat]` 可以看到跳过了哪台车、为什么跳过
+
 ![ARAT-1 Standard Array](docs/Images/Standard%20ARAT-1.png)
 ![BRAT Standard](docs/Images/Standard%20BRAT.png)
 ![Flork Spec](docs/Images/Flork%20Spec.png)
